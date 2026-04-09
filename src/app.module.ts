@@ -17,6 +17,7 @@ import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { FriendsModule } from './friends/friends.module';
 import { EmailModule } from './email/email.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { EmailModule } from './email/email.module';
     NotificationsModule,
     FriendsModule,
     EmailModule,
+    HealthModule,
   ],
   providers: [
     {

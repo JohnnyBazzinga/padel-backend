@@ -45,9 +45,13 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`Application running on: http://localhost:${port}/${prefix}`);
-  console.log(`Swagger docs: http://localhost:${port}/docs`);
+  // Listen on 0.0.0.0 for Railway/Docker compatibility
+  await app.listen(port, '0.0.0.0');
+  console.log(`Application running on port ${port}`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Local URL: http://localhost:${port}/${prefix}`);
+    console.log(`Swagger docs: http://localhost:${port}/docs`);
+  }
 }
 
 bootstrap();
