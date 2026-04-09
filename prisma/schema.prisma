@@ -1,0 +1,617 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum Role {
+  ADMIN
+  CLUB_OWNER
+  PLAYER
+}
+
+enum SkillLevel {
+  BEGINNER      // Iniciante
+  INTERMEDIATE  // Intermédio
+  ADVANCED      // Avançado
+  PROFESSIONAL  // Profissional
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum MatchStatus {
+  LOOKING_FOR_PLAYERS
+  FULL
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TournamentStatus {
+  UPCOMING
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TournamentFormat {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+  SWISS
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum ChatMessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+  MATCH_INVITE
+  MATCH_FOUND
+  MATCH_CANCELLED
+  TOURNAMENT_INVITE
+  TOURNAMENT_UPDATE
+  NEW_MESSAGE
+  FRIEND_REQUEST
+  RANKING_UPDATE
+  SYSTEM
+}
+
+enum ReportReason {
+  INAPPROPRIATE_BEHAVIOR
+  NO_SHOW
+  SPAM
+  HARASSMENT
+  FAKE_PROFILE
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+// ==================== USER & AUTH ====================
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  phone         String?
+  avatarUrl     String?
+  bio           String?
+  dateOfBirth   DateTime?
+  city          String?
+  country       String?     @default("Portugal")
+
+  // Padel specific
+  skillLevel    SkillLevel  @default(BEGINNER)
+  preferredHand String?     // LEFT, RIGHT, AMBIDEXTROUS
+  preferredSide String?     // DRIVE, BACKHAND, BOTH
+  yearsPlaying  Int?
+
+  // Roles
+  roles         UserRole[]
+
+  // Club ownership
+  ownedClubs    Club[]      @relation("ClubOwner")
+
+  // Player relations
+  bookings      Booking[]
+  matchPlayers  MatchPlayer[]
+  friendsInitiated  Friendship[] @relation("FriendInitiator")
+  friendsReceived   Friendship[] @relation("FriendReceiver")
+  rankings      Ranking[]
+  tournamentPlayers TournamentPlayer[]
+
+  // Chat
+  conversationsAs1  Conversation[] @relation("Participant1")
+  conversationsAs2  Conversation[] @relation("Participant2")
+  chatMessages      ChatMessage[]
+
+  // Notifications
+  notifications     Notification[]
+
+  // Compliance
+  blockedUsers      UserBlock[]   @relation("Blocker")
+  blockedBy         UserBlock[]   @relation("Blocked")
+  reportsMade       Report[]      @relation("Reporter")
+  reportsReceived   Report[]      @relation("Reported")
+
+  // Stats
+  matchesPlayed     Int           @default(0)
+  matchesWon        Int           @default(0)
+  totalPoints       Int           @default(0)
+
+  // Account status
+  isActive          Boolean       @default(true)
+  isVerified        Boolean       @default(false)
+  isDeleted         Boolean       @default(false)
+  deletedAt         DateTime?
+
+  // Consent & Legal
+  privacyAcceptedAt DateTime?
+  termsAcceptedAt   DateTime?
+  marketingConsent  Boolean       @default(false)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([email])
+  @@index([skillLevel])
+  @@index([city])
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  role      Role
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, role])
+}
+
+// ==================== CLUB & COURTS ====================
+
+model Club {
+  id            String    @id @default(uuid())
+  ownerId       String
+  name          String
+  slug          String    @unique
+  description   String?
+  address       String
+  city          String
+  postalCode    String?
+  latitude      Float?
+  longitude     Float?
+  phone         String?
+  email         String?
+  website       String?
+  logoUrl       String?
+  coverImageUrl String?
+  images        String?   // JSON array of image URLs
+
+  // Business hours (JSON)
+  businessHours String?   // {"monday": {"open": "08:00", "close": "22:00"}, ...}
+
+  // Amenities
+  hasParking      Boolean @default(false)
+  hasShowers      Boolean @default(false)
+  hasLockers      Boolean @default(false)
+  hasProShop      Boolean @default(false)
+  hasCafeteria    Boolean @default(false)
+  hasWifi         Boolean @default(false)
+
+  // Status
+  isActive      Boolean   @default(true)
+  isVerified    Boolean   @default(false)
+
+  // Relations
+  owner         User      @relation("ClubOwner", fields: [ownerId], references: [id])
+  courts        Court[]
+  tournaments   Tournament[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([city])
+  @@index([slug])
+}
+
+model Court {
+  id            String    @id @default(uuid())
+  clubId        String
+  name          String
+  description   String?
+  courtNumber   Int
+
+  // Court specs
+  surface       String    @default("ARTIFICIAL_GRASS") // ARTIFICIAL_GRASS, CEMENT, SYNTHETIC
+  isIndoor      Boolean   @default(false)
+  hasLighting   Boolean   @default(true)
+  hasCovering   Boolean   @default(false)
+
+  // Pricing (cents)
+  pricePerHour        Int       @default(2000) // 20.00 EUR
+  pricePerHourPeak    Int?      // Peak hours price
+  peakHoursStart      String?   // "18:00"
+  peakHoursEnd        String?   // "22:00"
+
+  // Status
+  isActive      Boolean   @default(true)
+  isUnderMaintenance Boolean @default(false)
+
+  // Relations
+  club          Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  bookings      Booking[]
+  matches       Match[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([clubId, courtNumber])
+  @@index([clubId])
+}
+
+// ==================== BOOKINGS ====================
+
+model Booking {
+  id            String        @id @default(uuid())
+  courtId       String
+  userId        String
+
+  date          DateTime      @db.Date
+  startTime     String        // "09:00"
+  endTime       String        // "10:30"
+  durationMins  Int           @default(90)
+
+  // Pricing
+  totalPrice    Int           // In cents
+  isPaid        Boolean       @default(false)
+  paymentId     String?       // External payment reference
+
+  status        BookingStatus @default(PENDING)
+  notes         String?
+
+  // Cancellation
+  cancelledAt   DateTime?
+  cancelledBy   String?
+  cancelReason  String?
+
+  // Relations
+  court         Court         @relation(fields: [courtId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  match         Match?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([courtId, date])
+  @@index([userId])
+  @@index([status])
+}
+
+// ==================== MATCHES & MATCHMAKING ====================
+
+model Match {
+  id            String        @id @default(uuid())
+  courtId       String?
+  bookingId     String?       @unique
+
+  // Match details
+  title         String?
+  description   String?
+  date          DateTime      @db.Date
+  startTime     String
+  endTime       String
+
+  // Level requirement
+  minLevel      SkillLevel    @default(BEGINNER)
+  maxLevel      SkillLevel    @default(PROFESSIONAL)
+
+  // Match status
+  status        MatchStatus   @default(LOOKING_FOR_PLAYERS)
+  playersNeeded Int           @default(4)
+  isPrivate     Boolean       @default(false)
+
+  // Location (for matches without court booking)
+  location      String?
+  city          String?
+
+  // Score (if completed)
+  score         String?       // "6-4 6-3" or JSON
+  winnerId      String?       // Team/Player ID
+
+  // Relations
+  court         Court?        @relation(fields: [courtId], references: [id])
+  booking       Booking?      @relation(fields: [bookingId], references: [id])
+  players       MatchPlayer[]
+  invites       MatchInvite[]
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([date])
+  @@index([status])
+  @@index([city])
+}
+
+model MatchPlayer {
+  id            String    @id @default(uuid())
+  matchId       String
+  userId        String
+  team          Int       @default(0) // 1 or 2
+  position      String?   // DRIVE, BACKHAND
+  isOrganizer   Boolean   @default(false)
+  confirmedAt   DateTime?
+
+  match         Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime  @default(now())
+
+  @@unique([matchId, userId])
+}
+
+model MatchInvite {
+  id            String        @id @default(uuid())
+  matchId       String
+  email         String
+  token         String        @unique @default(uuid())
+  status        InviteStatus  @default(PENDING)
+  respondedAt   DateTime?
+
+  match         Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime      @default(now())
+  expiresAt     DateTime
+
+  @@index([matchId])
+  @@index([email])
+}
+
+// ==================== TOURNAMENTS ====================
+
+model Tournament {
+  id            String            @id @default(uuid())
+  clubId        String
+  name          String
+  description   String?
+
+  // Schedule
+  startDate     DateTime
+  endDate       DateTime
+  registrationDeadline DateTime
+
+  // Format
+  format        TournamentFormat  @default(SINGLE_ELIMINATION)
+  maxTeams      Int               @default(16)
+  minLevel      SkillLevel        @default(BEGINNER)
+  maxLevel      SkillLevel        @default(PROFESSIONAL)
+
+  // Pricing
+  entryFee      Int               @default(0) // In cents
+  prizePool     Int?
+
+  // Rules
+  rules         String?           // JSON or text
+
+  // Status
+  status        TournamentStatus  @default(UPCOMING)
+
+  // Media
+  imageUrl      String?
+
+  // Relations
+  club          Club              @relation(fields: [clubId], references: [id])
+  players       TournamentPlayer[]
+  brackets      TournamentBracket[]
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([clubId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model TournamentPlayer {
+  id            String      @id @default(uuid())
+  tournamentId  String
+  userId        String
+  partnerId     String?     // Partner user ID (for doubles)
+  teamName      String?
+  seed          Int?
+
+  // Payment
+  isPaid        Boolean     @default(false)
+  paymentId     String?
+
+  // Progress
+  isEliminated  Boolean     @default(false)
+  finalPosition Int?
+
+  tournament    Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime    @default(now())
+
+  @@unique([tournamentId, userId])
+}
+
+model TournamentBracket {
+  id            String      @id @default(uuid())
+  tournamentId  String
+  round         Int
+  matchNumber   Int
+
+  team1Id       String?
+  team2Id       String?
+  winnerId      String?
+
+  score         String?
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+
+  tournament    Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([tournamentId, round, matchNumber])
+}
+
+// ==================== RANKINGS ====================
+
+model Ranking {
+  id            String      @id @default(uuid())
+  userId        String
+
+  // Ranking data
+  points        Int         @default(0)
+  position      Int?
+  tier          String?     // BRONZE, SILVER, GOLD, PLATINUM, DIAMOND
+
+  // Stats
+  matchesPlayed Int         @default(0)
+  matchesWon    Int         @default(0)
+  winRate       Float       @default(0)
+
+  // Category
+  category      String      @default("GENERAL") // GENERAL, CITY, CLUB
+  categoryId    String?     // City name or club ID
+
+  // Period
+  period        String?     // "2024-Q1", "2024", "all-time"
+
+  user          User        @relation(fields: [userId], references: [id])
+
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([userId, category, categoryId, period])
+  @@index([category, categoryId, position])
+}
+
+// ==================== SOCIAL ====================
+
+model Friendship {
+  id            String      @id @default(uuid())
+  initiatorId   String
+  receiverId    String
+  status        InviteStatus @default(PENDING)
+
+  initiator     User        @relation("FriendInitiator", fields: [initiatorId], references: [id])
+  receiver      User        @relation("FriendReceiver", fields: [receiverId], references: [id])
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([initiatorId, receiverId])
+}
+
+// ==================== CHAT ====================
+
+model Conversation {
+  id              String        @id @default(uuid())
+  participant1Id  String
+  participant2Id  String
+
+  lastMessageAt   DateTime?
+
+  participant1    User          @relation("Participant1", fields: [participant1Id], references: [id])
+  participant2    User          @relation("Participant2", fields: [participant2Id], references: [id])
+  messages        ChatMessage[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([participant1Id, participant2Id])
+  @@index([participant1Id])
+  @@index([participant2Id])
+}
+
+model ChatMessage {
+  id              String            @id @default(uuid())
+  conversationId  String
+  senderId        String
+  content         String
+
+  status          ChatMessageStatus @default(SENT)
+  readAt          DateTime?
+
+  conversation    Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User              @relation(fields: [senderId], references: [id])
+
+  createdAt       DateTime          @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id            String            @id @default(uuid())
+  userId        String
+  type          NotificationType
+  title         String
+  message       String
+  data          String?           // JSON with additional data
+
+  isRead        Boolean           @default(false)
+  readAt        DateTime?
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime          @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ==================== MODERATION ====================
+
+model UserBlock {
+  id            String    @id @default(uuid())
+  blockerId     String
+  blockedId     String
+  reason        String?
+
+  blocker       User      @relation("Blocker", fields: [blockerId], references: [id])
+  blocked       User      @relation("Blocked", fields: [blockedId], references: [id])
+
+  createdAt     DateTime  @default(now())
+
+  @@unique([blockerId, blockedId])
+}
+
+model Report {
+  id            String        @id @default(uuid())
+  reporterId    String
+  reportedId    String
+  reason        ReportReason
+  description   String?
+
+  status        ReportStatus  @default(PENDING)
+  resolvedAt    DateTime?
+  resolvedById  String?
+  resolution    String?
+
+  reporter      User          @relation("Reporter", fields: [reporterId], references: [id])
+  reported      User          @relation("Reported", fields: [reportedId], references: [id])
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([status])
+}
