@@ -133,8 +133,8 @@ export class CourtsService {
     };
   }
 
-  private generateTimeSlots(dateString: string) {
-    const slots = [];
+  private generateTimeSlots(dateString: string): { startTime: string; endTime: string }[] {
+    const slots: { startTime: string; endTime: string }[] = [];
     const startHour = 7;
     const endHour = 23;
     const duration = 90;
@@ -167,7 +167,7 @@ export class CourtsService {
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   }
 
-  private isPeakHour(time: string, peakStart?: string, peakEnd?: string): boolean {
+  private isPeakHour(time: string, peakStart?: string | null, peakEnd?: string | null): boolean {
     if (!peakStart || !peakEnd) return false;
     const current = this.timeToMinutes(time);
     const start = this.timeToMinutes(peakStart);

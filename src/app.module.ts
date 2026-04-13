@@ -39,8 +39,8 @@ import { HealthModule } from './health/health.module';
     }),
     ThrottlerModule.forRoot([
       {
-        ttl: parseInt(process.env.RATE_LIMIT_TTL) || 60000,
-        limit: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+        ttl: parseInt(process.env.RATE_LIMIT_TTL || '60000'),
+        limit: parseInt(process.env.RATE_LIMIT_MAX || '100'),
       },
     ]),
     PrismaModule,

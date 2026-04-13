@@ -225,7 +225,7 @@ export class BookingsService {
     });
   }
 
-  private isPeakHour(time: string, peakStart?: string, peakEnd?: string): boolean {
+  private isPeakHour(time: string, peakStart?: string | null, peakEnd?: string | null): boolean {
     if (!peakStart || !peakEnd) return false;
     const [h, m] = time.split(':').map(Number);
     const current = h * 60 + m;

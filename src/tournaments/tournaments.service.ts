@@ -189,13 +189,13 @@ export class TournamentsService {
     }
 
     const rounds = Math.ceil(Math.log2(numTeams));
-    const brackets = [];
+    const brackets: { tournamentId: string; round: number; matchNumber: number; team1Id: string | null; team2Id: string | null }[] = [];
 
     for (let round = 1; round <= rounds; round++) {
       const matchesInRound = Math.pow(2, rounds - round);
       for (let matchNumber = 1; matchNumber <= matchesInRound; matchNumber++) {
-        let team1Id = null;
-        let team2Id = null;
+        let team1Id: string | null = null;
+        let team2Id: string | null = null;
 
         if (round === 1) {
           const idx1 = (matchNumber - 1) * 2;

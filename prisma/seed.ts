@@ -1,4 +1,4 @@
-import { PrismaClient, Role, SkillLevel } from '@prisma/client';
+import { PrismaClient, Role, SkillLevel, User } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
@@ -55,7 +55,7 @@ async function main() {
 
   // Create Players
   const playerPassword = await argon2.hash('Player123!@#');
-  const players = [];
+  const players: User[] = [];
   const playerData = [
     { email: 'joao@exemplo.pt', firstName: 'João', lastName: 'Santos', city: 'Lisboa', skillLevel: SkillLevel.INTERMEDIATE },
     { email: 'maria@exemplo.pt', firstName: 'Maria', lastName: 'Costa', city: 'Lisboa', skillLevel: SkillLevel.ADVANCED },
